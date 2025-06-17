@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Mini TikTok</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="container">
+    <div id="video-wrapper">
+      <video id="preview" autoplay muted playsinline></video>
+      <img id="watermark" src="https://i.ibb.co/your-image.png" />
+    </div>
+    <div id="controls">
+      <select id="speed">
+        <option value="0.5">0.5x</option>
+        <option value="1" selected>1x</option>
+        <option value="1.5">1.5x</option>
+        <option value="2">2x</option>
+      </select>
+      <button id="startBtn">Start Recording</button>
+      <button id="pauseBtn" disabled>Pause</button>
+      <button id="resumeBtn" disabled>Resume</button>
+      <button id="stopBtn" disabled>Stop</button>
+    </div>
+  </div>
+  <audio id="bgAudio" src="your-mp3-file.mp3"></audio>
+  <script src="script.js"></script>
+</body>
+</html>
