@@ -1,100 +1,93 @@
-const preview = document.getElementById('preview');
-const recordBtn = document.getElementById('recordBtn');
-const musicBtn = document.getElementById('musicBtn');
-const speedBtn = document.getElementById('speedBtn');
-const bgMusic = document.getElementById('bgMusic');
 
 let mediaRecorder;
 let recordedChunks = [];
-let currentSpeed = 1;
-
 let stream;
-let audioCtx;
-let mixedStream;
+let speed = 1;
 
-async function initCamera() {
-  stream = await navigator.mediaDevices.getUserMedia({
-    video: {
-      facingMode: 'user',
-      width: { ideal: 360 },
-      height: { ideal: 640 }
-    },
-    audio: true
-  });
+const startBtn = document.getElementById('start');
+const stopBtn = document.getElementById('stop');
+const speedSelect = document.getElementById('speed');
+const preview = document.getElementById('preview');
+const playback = document.getElementById('playback');
+const download = document.getElementById('download');
+
+speedSelect.addEventListener('change', () => {
+  speed = parseFloat(speedSelect.value);
+});
+
+startBtn.onclick = async () => {
+  stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
   preview.srcObject = stream;
+
+  recordedChunks = [];
+  mediaRecorder = new MediaRecorder(stream);
+  mediaRecorder.ondataavailable = e => {
+    if (e.data.size > 0) recordedChunks.push(e.data);
+  };
+  mediaRecorder.onstop = handleRecordingComplete;
+
+  mediaRecorder.start();
+  startBtn.disabled = true;
+  stopBtn.disabled = false;
+};
+
+stopBtn.onclick = () => {
+  mediaRecorder.stop();
+  stream.getTracks().forEach(track => track.stop());
+  startBtn.disabled = false;
+  stopBtn.disabled = true;
+};
+
+function handleRecordingComplete() {
+  const blob = new Blob(recordedChunks, { type: 'video/webm' });
+  const recordedUrl = URL.createObjectURL(blob);
+
+  const playbackVideo = document.getElementById('playback');
+  playbackVideo.src = recordedUrl;
+  playbackVideo.playbackRate = speed;
+  playbackVideo.style.display = 'block';
+  playbackVideo.onloadedmetadata = () => {
+    setTimeout(() => exportWithSpeed(playbackVideo), 100);
+  };
 }
 
-function mixAudio() {
-  audioCtx = new AudioContext();
-  const micSource = audioCtx.createMediaStreamSource(stream);
-  const musicSource = audioCtx.createMediaElementSource(bgMusic);
+async function exportWithSpeed(videoElement) {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = videoElement.videoWidth;
+  canvas.height = videoElement.videoHeight;
 
-  const destination = audioCtx.createMediaStreamDestination();
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const source = audioCtx.createMediaElementSource(videoElement);
+  const dest = audioCtx.createMediaStreamDestination();
+  source.connect(dest);
+  source.connect(audioCtx.destination);
 
-  micSource.connect(destination);
-  musicSource.connect(destination);
+  const canvasStream = canvas.captureStream();
+  const mixedStream = new MediaStream([...canvasStream.getVideoTracks(), ...dest.stream.getAudioTracks()]);
 
-  const mixedTracks = [
-    ...stream.getVideoTracks(),
-    ...destination.stream.getAudioTracks()
-  ];
+  const finalRecorder = new MediaRecorder(mixedStream);
+  const finalChunks = [];
+  finalRecorder.ondataavailable = e => {
+    if (e.data.size > 0) finalChunks.push(e.data);
+  };
+  finalRecorder.onstop = () => {
+    const finalBlob = new Blob(finalChunks, { type: 'video/webm' });
+    const url = URL.createObjectURL(finalBlob);
+    download.href = url;
+    download.style.display = 'inline-block';
+  };
 
-  mixedStream = new MediaStream(mixedTracks);
+  videoElement.play();
+  finalRecorder.start();
+
+  function drawFrame() {
+    if (!videoElement.paused && !videoElement.ended) {
+      ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+      requestAnimationFrame(drawFrame);
+    }
+  }
+  drawFrame();
+
+  videoElement.onended = () => finalRecorder.stop();
 }
-
-recordBtn.onclick = async () => {
-  if (recordBtn.textContent === '🔴 Record') {
-    mixAudio();
-    recordedChunks = [];
-    mediaRecorder = new MediaRecorder(mixedStream);
-
-    mediaRecorder.ondataavailable = (e) => {
-      if (e.data.size > 0) recordedChunks.push(e.data);
-    };
-
-    mediaRecorder.onstop = () => {
-      const blob = new Blob(recordedChunks, { type: 'video/webm' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'recording.webm';
-      a.click();
-    };
-
-    mediaRecorder.start();
-    bgMusic.play();
-    recordBtn.textContent = '⏹ Stop';
-  } else {
-    mediaRecorder.stop();
-    bgMusic.pause();
-    bgMusic.currentTime = 0;
-    recordBtn.textContent = '🔴 Record';
-  }
-};
-
-musicBtn.onclick = () => {
-  if (bgMusic.paused) {
-    bgMusic.play();
-    musicBtn.textContent = '🔇 Mute Music';
-  } else {
-    bgMusic.pause();
-    musicBtn.textContent = '🎵 Music';
-  }
-};
-
-speedBtn.onclick = () => {
-  if (currentSpeed === 1) {
-    currentSpeed = 0.5;
-    speedBtn.textContent = '🐢 0.5x';
-  } else if (currentSpeed === 0.5) {
-    currentSpeed = 2;
-    speedBtn.textContent = '⚡ 2x';
-  } else {
-    currentSpeed = 1;
-    speedBtn.textContent = '⏩ 1x';
-  }
-
-  preview.playbackRate = currentSpeed;
-};
-
-initCamera();
