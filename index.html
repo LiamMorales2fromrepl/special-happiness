@@ -1,207 +1,24 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Camera Recorder with Audio</title>
-<style>
-  body {
-    font-family: Arial, sans-serif;
-    margin: 1rem;
-    text-align: center;
-    background: #222;
-    color: #eee;
-  }
-  video {
-    width: 360px;
-    height: 640px;
-    background: black;
-    margin-bottom: 1rem;
-    object-fit: cover;
-    border-radius: 8px;
-  }
-  button, select {
-    margin: 0.3rem;
-    padding: 0.6rem 1rem;
-    font-size: 1rem;
-    border-radius: 5px;
-    border: none;
-    cursor: pointer;
-  }
-  button:disabled {
-    opacity: 0.5;
-    cursor: default;
-  }
-  #playback {
-    display: none;
-    margin-top: 1rem;
-  }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vertical Video Recorder</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <h1>🎥 TikTok Clone</h1>
 
-<h1>Record Video with Audio</h1>
+  <video id="preview" autoplay muted playsinline></video>
 
-<video id="preview" autoplay muted playsinline></video><br />
+  <div class="controls">
+    <button id="recordBtn">🔴 Record</button>
+    <button id="musicBtn">🎵 Music</button>
+    <button id="speedBtn">⏩ 1x</button>
+  </div>
 
-<audio id="bgAudio" src="https://cdn.pixabay.com/download/audio/2022/03/22/audio_6e38399a7a.mp3?filename=pop-instrumental-6951.mp3" crossorigin="anonymous"></audio>
+  <audio id="bgMusic" src="your-music.mp3" loop></audio>
 
-<div>
-  <button id="startBtn">Start</button>
-  <button id="pauseBtn" disabled>Pause</button>
-  <button id="resumeBtn" disabled>Resume</button>
-  <button id="stopBtn" disabled>Stop</button>
-</div>
-
-<label for="speed">Speed:</label>
-<select id="speed">
-  <option value="0.5">0.5x</option>
-  <option value="1" selected>1x</option>
-  <option value="1.5">1.5x</option>
-  <option value="2">2x</option>
-</select>
-
-<h2>Playback</h2>
-<video id="playback" controls></video>
-
-<script>
-  const preview = document.getElementById('preview');
-  const playback = document.getElementById('playback');
-  const startBtn = document.getElementById('startBtn');
-  const pauseBtn = document.getElementById('pauseBtn');
-  const resumeBtn = document.getElementById('resumeBtn');
-  const stopBtn = document.getElementById('stopBtn');
-  const bgAudio = document.getElementById('bgAudio');
-  const speedSelect = document.getElementById('speed');
-
-  let mediaRecorder;
-  let recordedChunks = [];
-  let cameraStream;
-  let combinedStream;
-
-  async function setupCamera() {
-    try {
-      cameraStream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          width: { ideal: 360 },
-          height: { ideal: 640 },
-          facingMode: 'user',
-          aspectRatio: 9 / 16
-        },
-        audio: false
-      });
-      preview.srcObject = cameraStream;
-      console.log('Camera started');
-    } catch (err) {
-      console.error('Error accessing camera:', err);
-      alert('Cannot access camera. Please allow camera access and reload.');
-    }
-  }
-  setupCamera();
-
-  function combineStreams() {
-    const audioStream = bgAudio.captureStream();
-    const videoTracks = cameraStream.getVideoTracks();
-    const audioTracks = audioStream.getAudioTracks();
-    combinedStream = new MediaStream([...videoTracks, ...audioTracks]);
-  }
-
-  startBtn.onclick = () => {
-    recordedChunks = [];
-
-    combineStreams();
-
-    mediaRecorder = new MediaRecorder(combinedStream, { mimeType: 'video/webm; codecs=vp8,opus' });
-
-    mediaRecorder.ondataavailable = event => {
-      if (event.data.size > 0) {
-        recordedChunks.push(event.data);
-      }
-    };
-
-    mediaRecorder.onstop = () => {
-      const blob = new Blob(recordedChunks, { type: 'video/webm' });
-      const url = URL.createObjectURL(blob);
-
-      playback.src = url;
-      playback.style.display = 'block';
-      playback.playbackRate = parseFloat(speedSelect.value);
-      playback.play();
-
-      // Auto download
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'recording.webm';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    };
-
-    bgAudio.pause();
-    bgAudio.currentTime = 0;
-    bgAudio.playbackRate = parseFloat(speedSelect.value);
-
-    mediaRecorder.start();
-    bgAudio.play();
-
-    pauseBtn.disabled = false;
-    stopBtn.disabled = false;
-    startBtn.disabled = true;
-    resumeBtn.disabled = true;
-
-    // Auto stop after 15 seconds
-    setTimeout(() => {
-      if (mediaRecorder && mediaRecorder.state === 'recording') {
-        stopRecording();
-      }
-    }, 15000);
-  };
-
-  pauseBtn.onclick = () => {
-    if (mediaRecorder && mediaRecorder.state === 'recording') {
-      mediaRecorder.pause();
-      bgAudio.pause();
-
-      pauseBtn.disabled = true;
-      resumeBtn.disabled = false;
-    }
-  };
-
-  resumeBtn.onclick = () => {
-    if (mediaRecorder && mediaRecorder.state === 'paused') {
-      mediaRecorder.resume();
-      bgAudio.play();
-
-      pauseBtn.disabled = false;
-      resumeBtn.disabled = true;
-    }
-  };
-
-  stopBtn.onclick = stopRecording;
-
-  speedSelect.onchange = () => {
-    if (!mediaRecorder || mediaRecorder.state === 'inactive') {
-      playback.playbackRate = parseFloat(speedSelect.value);
-    } else {
-      bgAudio.playbackRate = parseFloat(speedSelect.value);
-    }
-  };
-
-  function stopRecording() {
-    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-      mediaRecorder.stop();
-    }
-    bgAudio.pause();
-    bgAudio.currentTime = 0;
-
-    pauseBtn.disabled = true;
-    resumeBtn.disabled = true;
-    stopBtn.disabled = true;
-    startBtn.disabled = false;
-  }
-</script>
-
+  <script src="script.js"></script>
 </body>
 </html>
-
