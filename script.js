@@ -12,17 +12,23 @@ let recordedChunks = [];
 let cameraStream;
 let combinedStream;
 
-async function setupCamera() {
-  cameraStream = await navigator.mediaDevices.getUserMedia({
-    video: {
-      width: { ideal: 360 },
-      height: { ideal: 640 },
-      facingMode: 'user',
-      aspectRatio: 9 / 16
-    },
-    audio: false
-  });
-  preview.srcObject = cameraStream;
+aasync function setupCamera() {
+  try {
+    cameraStream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        width: { ideal: 360 },
+        height: { ideal: 640 },
+        facingMode: 'user',
+        aspectRatio: 9 / 16
+      },
+      audio: false
+    });
+    preview.srcObject = cameraStream;
+    console.log('Camera started');
+  } catch (err) {
+    console.error('Error accessing camera:', err);
+    alert('Cannot access camera. Please check permissions and try again.');
+  }
 }
 setupCamera();
 
