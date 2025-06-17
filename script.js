@@ -48,8 +48,23 @@ startBtn.onclick = () => {
   };
 
   mediaRecorder.onstop = () => {
-    const blob = new Blob(recordedChunks, { type: 'video/webm' });
-    const url = URL.createObjectURL(blob);
+  const blob = new Blob(recordedChunks, { type: 'video/webm' });
+  const url = URL.createObjectURL(blob);
+
+  playback.src = url;
+  playback.style.display = 'block';
+  playback.playbackRate = parseFloat(speedSelect.value);
+  playback.play();
+
+  // Trigger download automatically
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'recording.webm';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
 
     playback.src = url;
     playback.style.display = 'block';
