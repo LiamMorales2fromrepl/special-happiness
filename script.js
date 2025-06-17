@@ -1,4 +1,5 @@
-const video = document.getElementById('preview');
+const preview = document.getElementById('preview');
+const playback = document.getElementById('playback');
 const startBtn = document.getElementById('startBtn');
 const pauseBtn = document.getElementById('pauseBtn');
 const resumeBtn = document.getElementById('resumeBtn');
@@ -8,68 +9,112 @@ const speedSelect = document.getElementById('speed');
 
 let mediaRecorder;
 let recordedChunks = [];
-let stream;
+let cameraStream;
+let combinedStream;
 
 async function setupCamera() {
-  stream = await navigator.mediaDevices.getUserMedia({
-    video: { facingMode: 'user' },
+  cameraStream = await navigator.mediaDevices.getUserMedia({
+    video: {
+      width: { ideal: 360 },
+      height: { ideal: 640 },
+      facingMode: 'user',
+      aspectRatio: 9 / 16
+    },
     audio: false
   });
-  video.srcObject = stream;
+  preview.srcObject = cameraStream;
 }
-
 setupCamera();
+
+function combineStreams() {
+  const audioStream = bgAudio.captureStream();
+  const videoTracks = cameraStream.getVideoTracks();
+  const audioTracks = audioStream.getAudioTracks();
+
+  combinedStream = new MediaStream([...videoTracks, ...audioTracks]);
+}
 
 startBtn.onclick = () => {
   recordedChunks = [];
-  const combinedStream = new MediaStream([
-    ...stream.getVideoTracks(),
-    ...bgAudio.captureStream().getAudioTracks()
-  ]);
 
-  mediaRecorder = new MediaRecorder(combinedStream);
+  combineStreams();
 
-  mediaRecorder.ondataavailable = e => {
-    if (e.data.size > 0) recordedChunks.push(e.data);
+  mediaRecorder = new MediaRecorder(combinedStream, { mimeType: 'video/webm; codecs=vp8,opus' });
+
+  mediaRecorder.ondataavailable = event => {
+    if (event.data.size > 0) {
+      recordedChunks.push(event.data);
+    }
   };
 
   mediaRecorder.onstop = () => {
     const blob = new Blob(recordedChunks, { type: 'video/webm' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'recording.webm';
-    a.click();
+
+    playback.src = url;
+    playback.style.display = 'block';
+    playback.playbackRate = parseFloat(speedSelect.value);
+    playback.play();
+
+    // Optional: to download automatically uncomment:
+    // const a = document.createElement('a');
+    // a.href = url;
+    // a.download = 'recording.webm';
+    // a.click();
   };
 
-  bgAudio.playbackRate = parseFloat(speedSelect.value);
+  // Reset bgAudio to start & set speed
+  bgAudio.pause();
   bgAudio.currentTime = 0;
-  bgAudio.play();
+  bgAudio.playbackRate = parseFloat(speedSelect.value);
 
   mediaRecorder.start();
-  setTimeout(() => {
-    stopRecording();
-  }, 15000); // 15 seconds max
+  bgAudio.play();
 
   pauseBtn.disabled = false;
   stopBtn.disabled = false;
+  startBtn.disabled = true;
+  resumeBtn.disabled = true;
+
+  // Auto stop after 15s
+  setTimeout(() => {
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+      stopRecording();
+    }
+  }, 15000);
 };
 
 pauseBtn.onclick = () => {
-  mediaRecorder.pause();
-  bgAudio.pause();
-  pauseBtn.disabled = true;
-  resumeBtn.disabled = false;
+  if (mediaRecorder && mediaRecorder.state === 'recording') {
+    mediaRecorder.pause();
+    bgAudio.pause();
+
+    pauseBtn.disabled = true;
+    resumeBtn.disabled = false;
+  }
 };
 
 resumeBtn.onclick = () => {
-  mediaRecorder.resume();
-  bgAudio.play();
-  pauseBtn.disabled = false;
-  resumeBtn.disabled = true;
+  if (mediaRecorder && mediaRecorder.state === 'paused') {
+    mediaRecorder.resume();
+    bgAudio.play();
+
+    pauseBtn.disabled = false;
+    resumeBtn.disabled = true;
+  }
 };
 
 stopBtn.onclick = stopRecording;
+
+speedSelect.onchange = () => {
+  // Change bgAudio speed during recording
+  if (!mediaRecorder || mediaRecorder.state === 'inactive') {
+    // Change playback speed after recording ends
+    playback.playbackRate = parseFloat(speedSelect.value);
+  } else {
+    bgAudio.playbackRate = parseFloat(speedSelect.value);
+  }
+};
 
 function stopRecording() {
   if (mediaRecorder && mediaRecorder.state !== 'inactive') {
@@ -77,7 +122,9 @@ function stopRecording() {
   }
   bgAudio.pause();
   bgAudio.currentTime = 0;
+
   pauseBtn.disabled = true;
   resumeBtn.disabled = true;
   stopBtn.disabled = true;
+  startBtn.disabled = false;
 }
