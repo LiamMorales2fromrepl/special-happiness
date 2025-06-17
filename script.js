@@ -1,151 +1,100 @@
 const preview = document.getElementById('preview');
-const playback = document.getElementById('playback');
-const startBtn = document.getElementById('startBtn');
-const pauseBtn = document.getElementById('pauseBtn');
-const resumeBtn = document.getElementById('resumeBtn');
-const stopBtn = document.getElementById('stopBtn');
-const bgAudio = document.getElementById('bgAudio');
-const speedSelect = document.getElementById('speed');
+const recordBtn = document.getElementById('recordBtn');
+const musicBtn = document.getElementById('musicBtn');
+const speedBtn = document.getElementById('speedBtn');
+const bgMusic = document.getElementById('bgMusic');
 
 let mediaRecorder;
 let recordedChunks = [];
-let cameraStream;
-let combinedStream;
+let currentSpeed = 1;
 
-aasync function setupCamera() {
-  try {
-    cameraStream = await navigator.mediaDevices.getUserMedia({
-      video: {
-        width: { ideal: 360 },
-        height: { ideal: 640 },
-        facingMode: 'user',
-        aspectRatio: 9 / 16
-      },
-      audio: false
-    });
-    preview.srcObject = cameraStream;
-    console.log('Camera started');
-  } catch (err) {
-    console.error('Error accessing camera:', err);
-    alert('Cannot access camera. Please check permissions and try again.');
-  }
-}
-setupCamera();
+let stream;
+let audioCtx;
+let mixedStream;
 
-function combineStreams() {
-  const audioStream = bgAudio.captureStream();
-  const videoTracks = cameraStream.getVideoTracks();
-  const audioTracks = audioStream.getAudioTracks();
-
-  combinedStream = new MediaStream([...videoTracks, ...audioTracks]);
+async function initCamera() {
+  stream = await navigator.mediaDevices.getUserMedia({
+    video: {
+      facingMode: 'user',
+      width: { ideal: 360 },
+      height: { ideal: 640 }
+    },
+    audio: true
+  });
+  preview.srcObject = stream;
 }
 
-startBtn.onclick = () => {
-  recordedChunks = [];
+function mixAudio() {
+  audioCtx = new AudioContext();
+  const micSource = audioCtx.createMediaStreamSource(stream);
+  const musicSource = audioCtx.createMediaElementSource(bgMusic);
 
-  combineStreams();
+  const destination = audioCtx.createMediaStreamDestination();
 
-  mediaRecorder = new MediaRecorder(combinedStream, { mimeType: 'video/webm; codecs=vp8,opus' });
+  micSource.connect(destination);
+  musicSource.connect(destination);
 
-  mediaRecorder.ondataavailable = event => {
-    if (event.data.size > 0) {
-      recordedChunks.push(event.data);
-    }
-  };
+  const mixedTracks = [
+    ...stream.getVideoTracks(),
+    ...destination.stream.getAudioTracks()
+  ];
 
-  mediaRecorder.onstop = () => {
-  const blob = new Blob(recordedChunks, { type: 'video/webm' });
-  const url = URL.createObjectURL(blob);
+  mixedStream = new MediaStream(mixedTracks);
+}
 
-  playback.src = url;
-  playback.style.display = 'block';
-  playback.playbackRate = parseFloat(speedSelect.value);
-  playback.play();
+recordBtn.onclick = async () => {
+  if (recordBtn.textContent === '🔴 Record') {
+    mixAudio();
+    recordedChunks = [];
+    mediaRecorder = new MediaRecorder(mixedStream);
 
-  // Trigger download automatically
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'recording.webm';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-};
+    mediaRecorder.ondataavailable = (e) => {
+      if (e.data.size > 0) recordedChunks.push(e.data);
+    };
 
-    playback.src = url;
-    playback.style.display = 'block';
-    playback.playbackRate = parseFloat(speedSelect.value);
-    playback.play();
+    mediaRecorder.onstop = () => {
+      const blob = new Blob(recordedChunks, { type: 'video/webm' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'recording.webm';
+      a.click();
+    };
 
-    // Optional: to download automatically uncomment:
-    // const a = document.createElement('a');
-    // a.href = url;
-    // a.download = 'recording.webm';
-    // a.click();
-  };
-
-  // Reset bgAudio to start & set speed
-  bgAudio.pause();
-  bgAudio.currentTime = 0;
-  bgAudio.playbackRate = parseFloat(speedSelect.value);
-
-  mediaRecorder.start();
-  bgAudio.play();
-
-  pauseBtn.disabled = false;
-  stopBtn.disabled = false;
-  startBtn.disabled = true;
-  resumeBtn.disabled = true;
-
-  // Auto stop after 15s
-  setTimeout(() => {
-    if (mediaRecorder && mediaRecorder.state === 'recording') {
-      stopRecording();
-    }
-  }, 15000);
-};
-
-pauseBtn.onclick = () => {
-  if (mediaRecorder && mediaRecorder.state === 'recording') {
-    mediaRecorder.pause();
-    bgAudio.pause();
-
-    pauseBtn.disabled = true;
-    resumeBtn.disabled = false;
-  }
-};
-
-resumeBtn.onclick = () => {
-  if (mediaRecorder && mediaRecorder.state === 'paused') {
-    mediaRecorder.resume();
-    bgAudio.play();
-
-    pauseBtn.disabled = false;
-    resumeBtn.disabled = true;
-  }
-};
-
-stopBtn.onclick = stopRecording;
-
-speedSelect.onchange = () => {
-  // Change bgAudio speed during recording
-  if (!mediaRecorder || mediaRecorder.state === 'inactive') {
-    // Change playback speed after recording ends
-    playback.playbackRate = parseFloat(speedSelect.value);
+    mediaRecorder.start();
+    bgMusic.play();
+    recordBtn.textContent = '⏹ Stop';
   } else {
-    bgAudio.playbackRate = parseFloat(speedSelect.value);
+    mediaRecorder.stop();
+    bgMusic.pause();
+    bgMusic.currentTime = 0;
+    recordBtn.textContent = '🔴 Record';
   }
 };
 
-function stopRecording() {
-  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-    mediaRecorder.stop();
+musicBtn.onclick = () => {
+  if (bgMusic.paused) {
+    bgMusic.play();
+    musicBtn.textContent = '🔇 Mute Music';
+  } else {
+    bgMusic.pause();
+    musicBtn.textContent = '🎵 Music';
   }
-  bgAudio.pause();
-  bgAudio.currentTime = 0;
+};
 
-  pauseBtn.disabled = true;
-  resumeBtn.disabled = true;
-  stopBtn.disabled = true;
-  startBtn.disabled = false;
-}
+speedBtn.onclick = () => {
+  if (currentSpeed === 1) {
+    currentSpeed = 0.5;
+    speedBtn.textContent = '🐢 0.5x';
+  } else if (currentSpeed === 0.5) {
+    currentSpeed = 2;
+    speedBtn.textContent = '⚡ 2x';
+  } else {
+    currentSpeed = 1;
+    speedBtn.textContent = '⏩ 1x';
+  }
+
+  preview.playbackRate = currentSpeed;
+};
+
+initCamera();
