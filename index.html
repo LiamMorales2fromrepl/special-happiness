@@ -1,27 +1,33 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Speed Recording App</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>9:16 Video Recorder with Audio & Watermark</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <h1>🎥 Record with Speed Control</h1>
-  <div class="controls">
-    <label for="speed">Speed:</label>
-    <select id="speed">
-      <option value="0.5">0.5x</option>
-      <option value="1" selected>1x</option>
-      <option value="2">2x</option>
-    </select>
-    <button id="start">Start Recording</button>
-    <button id="stop" disabled>Stop Recording</button>
-  </div>
+  <h1>Record Video with Audio</h1>
   <video id="preview" autoplay muted playsinline></video>
+
+  <input type="file" id="audioInput" accept="audio/*" />
+  
+  <div class="controls">
+    <button id="startBtn">Start</button>
+    <button id="pauseBtn" disabled>Pause</button>
+    <button id="resumeBtn" disabled>Resume</button>
+    <button id="stopBtn" disabled>Stop</button>
+    <select id="speedSelect">
+      <option value="1">1x Speed</option>
+      <option value="1.5">1.5x Speed</option>
+      <option value="2">2x Speed</option>
+    </select>
+  </div>
+
+  <h2>Playback</h2>
   <video id="playback" controls style="display:none;"></video>
-  <a id="download" href="#" download="recording.webm" style="display:none;">Download Video</a>
+
+  <a id="downloadLink" style="display:none;">Download Recording</a>
 
   <script src="script.js"></script>
 </body>
